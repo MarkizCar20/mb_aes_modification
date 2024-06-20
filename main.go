@@ -38,11 +38,81 @@ func addMatrix(m1 [4][4]string, m2 [4][4]string) [4][4]string {
 			if err1 != nil || err2 != nil {
 				fmt.Println("Error converting hex to int", err1, err2)
 			}
-			sum := val1 + val2
+			sum := val1 ^ val2 // Use XOR for addition in GF(2^8)
 			result[i][j] = fmt.Sprintf("%02x", sum)
 		}
 	}
 
+	return result
+}
+
+func computeInverseMatrix(matrix [4][4]string) [4][4]string {
+	var inverseMatrix [4][4]string
+	inverses := computeMultiplicationInverses()
+
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			val, err := strconv.ParseInt(matrix[i][j], 16, 64)
+			if err != nil {
+				fmt.Println("Error converting hex to int:", err)
+				continue
+			}
+			inverseMatrix[i][j] = fmt.Sprintf("%02x", inverses[val])
+		}
+	}
+	return inverseMatrix
+}
+
+func computeMultiplicationInverses() [256]byte {
+	var inverses [256]byte
+	inverses[0] = 0
+
+	for x := 1; x < 256; x++ {
+		for y := 1; y < 256; y++ {
+			if gfMultiply(byte(x), byte(y)) == 1 {
+				inverses[x] = byte(y)
+				break
+			}
+		}
+	}
+
+	return inverses
+}
+
+func checkInverses(m1, m2 [4][4]string) bool {
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			val1, err1 := strconv.ParseInt(m1[i][j], 16, 64)
+			val2, err2 := strconv.ParseInt(m2[i][j], 16, 64)
+
+			if err1 != nil || err2 != nil {
+				fmt.Println("Error converting hex to int", err1, err2)
+				return false
+			}
+			if gfMultiply(byte(val1), byte(val2)) != 1 {
+				fmt.Printf("Mismatch at (%d, %d): %02x * %02x != 01\n", i, j, val1, val2)
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func gfMultiply(a, b byte) byte {
+	var result byte = 0
+	var polynomial byte = 0x1B // Polynomial for reduction: x^8 + x^4 + x^3 + x + 1 -> 0b11011 in hex is 0x1B
+
+	for i := 0; i < 8; i++ {
+		if (b & 1) != 0 {
+			result ^= a
+		}
+		carry := (a & 0x80) != 0
+		a <<= 1
+		if carry {
+			a ^= polynomial
+		}
+		b >>= 1
+	}
 	return result
 }
 
@@ -54,14 +124,26 @@ func main() {
 	wordMatrix := convertToHexMatrix(word)
 	keyMatrix := convertToHexMatrix(key)
 	sumMatrix := addMatrix(wordMatrix, keyMatrix)
+	inverseMatrix := computeInverseMatrix(sumMatrix)
 	fmt.Println("Hex matrix of the word: ")
 	printMatrix(wordMatrix)
-	fmt.Printf("<----------------------->")
+	fmt.Println("<----------------------->")
 	fmt.Println("Hex matrix of the key: ")
 	printMatrix(keyMatrix)
-	fmt.Printf("<----------------------->")
+	fmt.Println("<----------------------->")
 	fmt.Println("Hex matrix of their sum")
 	printMatrix(sumMatrix)
-	fmt.Printf("<----------------------->")
+	fmt.Println("<----------------------->")
+	fmt.Println("Inverse Matrix: ")
+	printMatrix(inverseMatrix)
+	fmt.Println("<----------------------->")
+	fmt.Println("Check Inverses: ")
+	checkInverses(sumMatrix, inverseMatrix)
+	fmt.Println("<----------------------->")
 
+	a := byte(0xa9) // Example hex value
+	b := byte(0xc8) // Example hex value
+
+	result := gfMultiply(a, b)
+	fmt.Printf("Result: %02X\n", result)
 }
