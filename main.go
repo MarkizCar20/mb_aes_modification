@@ -38,7 +38,8 @@ func addMatrix(m1 [4][4]string, m2 [4][4]string) [4][4]string {
 			if err1 != nil || err2 != nil {
 				fmt.Println("Error converting hex to int", err1, err2)
 			}
-			sum := val1 ^ val2 // Use XOR for addition in GF(2^8)
+			sum := val1 + val2 // Use XOR for addition in GF(2^8)
+			//sum := val1 + val2 // Should be XOR instead of ADD, bcs GF(256)
 			result[i][j] = fmt.Sprintf("%02x", sum)
 		}
 	}
@@ -116,6 +117,39 @@ func gfMultiply(a, b byte) byte {
 	return result
 }
 
+func byteToVector(b byte) [8]int {
+	var vector [8]int
+	binaryStr := fmt.Sprintf("%08b", b)
+	for i := 0; i < 8; i++ {
+		vector[i] = int(binaryStr[i] - '0')
+	}
+	return vector
+}
+
+func matrixToVectors(m [4][4]string) [4][4][8]int {
+	var vectorMatrix [4][4][8]int
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			val, err := strconv.ParseUint(m[i][j], 16, 8)
+			if err != nil {
+				fmt.Printf("Error converting hex to int", err)
+				continue
+			}
+			vectorMatrix[i][j] = byteToVector(byte(val))
+		}
+	}
+	return vectorMatrix
+}
+
+func printVectorMatrix(vMatrix [4][4][8]int) {
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			fmt.Printf("%v ", vMatrix[i][j])
+		}
+		fmt.Println()
+	}
+}
+
 func main() {
 	fmt.Println("Hello go")
 
@@ -137,13 +171,10 @@ func main() {
 	fmt.Println("Inverse Matrix: ")
 	printMatrix(inverseMatrix)
 	fmt.Println("<----------------------->")
-	fmt.Println("Check Inverses: ")
-	checkInverses(sumMatrix, inverseMatrix)
+	bitVectorMatrix := matrixToVectors(inverseMatrix)
+	fmt.Println("<----------------------->")
+	fmt.Println("Matrix of 8b vectors of the inverse sum: ")
+	printVectorMatrix(bitVectorMatrix)
 	fmt.Println("<----------------------->")
 
-	a := byte(0xa9) // Example hex value
-	b := byte(0xc8) // Example hex value
-
-	result := gfMultiply(a, b)
-	fmt.Printf("Result: %02X\n", result)
 }
