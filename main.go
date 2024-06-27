@@ -17,6 +17,17 @@ var X = [8][8]int{
 	{0, 0, 0, 1, 1, 1, 1, 1},
 }
 
+var X_inv = [8][8]int{
+	{0, 1, 0, 0, 0, 0, 0, 1},
+	{1, 0, 1, 0, 0, 0, 0, 1},
+	{0, 1, 0, 1, 0, 0, 0, 1},
+	{0, 0, 1, 0, 1, 0, 0, 1},
+	{0, 0, 0, 1, 0, 1, 0, 1},
+	{0, 0, 0, 0, 1, 0, 1, 1},
+	{0, 0, 0, 0, 0, 1, 0, 1},
+	{0, 0, 0, 0, 0, 0, 1, 1},
+}
+
 // Predefined vector y
 var y = [8]int{1, 1, 0, 0, 0, 1, 0, 0}
 
@@ -29,6 +40,14 @@ func convertToHexMatrix(word string) [4][4]string {
 
 	for i := 0; i < 16; i++ {
 		matrix[i/4][i%4] = fmt.Sprintf("%02x", paddedWord[i])
+	}
+	return matrix
+}
+
+func convertStringToHexMatrix(word string) [4][4]string {
+	var matrix [4][4]string
+	for i := 0; i < 16; i++ {
+		matrix[i/4][i%4] = fmt.Sprintf("%02x", word[i])
 	}
 	return matrix
 }
@@ -53,8 +72,7 @@ func addMatrix(m1 [4][4]string, m2 [4][4]string) [4][4]string {
 			if err1 != nil || err2 != nil {
 				fmt.Println("Error converting hex to int", err1, err2)
 			}
-			sum := val1 + val2 // Use XOR for addition in GF(2^8)
-			//sum := val1 + val2 // Should be XOR instead of ADD, bcs GF(256)
+			sum := val1 ^ val2 // Use XOR for addition in GF(2^8)
 			result[i][j] = fmt.Sprintf("%02x", sum)
 		}
 	}
@@ -164,6 +182,20 @@ func multiplyAndAdd(vector [8]int) [8]int {
 	return result
 }
 
+func multiplyAndSubtract(vector [8]int) [8]int {
+	var result [8]int
+	for i := 0; i < 8; i++ {
+		result[i] = vector[i] ^ y[i]
+	}
+	var original [8]int
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
+			original[i] ^= X_inv[i][j] * result[j]
+		}
+	}
+	return original
+}
+
 func processMatrix(matrix [4][4]string) [4][4]string {
 	var processedMatrix [4][4]string
 	for i := 0; i < 4; i++ {
@@ -176,6 +208,23 @@ func processMatrix(matrix [4][4]string) [4][4]string {
 			vector := byteToVector(byte(val))
 			processedVector := multiplyAndAdd(vector)
 			processedMatrix[i][j] = fmt.Sprintf("%02x", vectorToByte(processedVector))
+		}
+	}
+	return processedMatrix
+}
+
+func inverseProcessMatrix(matrix [4][4]string) [4][4]string {
+	var processedMatrix [4][4]string
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			val, err := strconv.ParseUint(matrix[i][j], 16, 8)
+			if err != nil {
+				fmt.Println("Error converting hex to int:", err)
+				continue
+			}
+			vector := byteToVector(byte(val))
+			originalVector := multiplyAndSubtract(vector)
+			processedMatrix[i][j] = fmt.Sprintf("%02x", vectorToByte(originalVector))
 		}
 	}
 	return processedMatrix
@@ -227,4 +276,22 @@ func main() {
 		return
 	}
 	fmt.Println("Crypted message:", cryptedMessage)
+
+	fmt.Println("<----------------------->")
+	encryptedMatrix := convertStringToHexMatrix(cryptedMessage)
+	printMatrix(encryptedMatrix)
+	fmt.Println("<----------------------->")
+	inverseProcessedMatrix := inverseProcessMatrix(encryptedMatrix)
+	fmt.Println("Processed Matrix: ")
+	printMatrix(inverseProcessedMatrix)
+	fmt.Println("<----------------------->")
+	finalSumMatrix := addMatrix(inverseProcessedMatrix, keyMatrix)
+	fmt.Println("Final sum matrix: ")
+	printMatrix(finalSumMatrix)
+	fmt.Println("<----------------------->")
+	finalWord, err := matrixToString(finalSumMatrix)
+	if err != nil {
+		fmt.Printf("Error when converting to string: %v\n", err)
+	}
+	fmt.Printf("Final word: %s\n", finalWord)
 }
