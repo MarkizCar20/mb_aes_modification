@@ -5,6 +5,21 @@ import (
 	"strconv"
 )
 
+// 8x8 binary matrix X
+var X = [8][8]int{
+	{1, 0, 0, 0, 1, 1, 1, 1},
+	{1, 1, 0, 0, 0, 1, 1, 1},
+	{1, 1, 1, 0, 0, 0, 1, 1},
+	{1, 1, 1, 1, 0, 0, 0, 1},
+	{1, 1, 1, 1, 1, 0, 0, 0},
+	{0, 1, 1, 1, 1, 1, 0, 0},
+	{0, 0, 1, 1, 1, 1, 1, 0},
+	{0, 0, 0, 1, 1, 1, 1, 1},
+}
+
+// Predefined vector y
+var y = [8]int{1, 1, 0, 0, 0, 1, 0, 0}
+
 func convertToHexMatrix(word string) [4][4]string {
 	var matrix [4][4]string
 	paddedWord := []byte(word)
@@ -126,28 +141,59 @@ func byteToVector(b byte) [8]int {
 	return vector
 }
 
-func matrixToVectors(m [4][4]string) [4][4][8]int {
-	var vectorMatrix [4][4][8]int
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
-			val, err := strconv.ParseUint(m[i][j], 16, 8)
-			if err != nil {
-				fmt.Printf("Error converting hex to int", err)
-				continue
-			}
-			vectorMatrix[i][j] = byteToVector(byte(val))
+// Function to convert an 8-bit vector to a byte
+func vectorToByte(vector [8]int) byte {
+	var result byte
+	for i := 0; i < 8; i++ {
+		if vector[i] == 1 {
+			result |= 1 << (7 - i)
 		}
 	}
-	return vectorMatrix
+	return result
 }
 
-func printVectorMatrix(vMatrix [4][4][8]int) {
+// Function to multiply the matrix X by an 8-bit vector and add vector y
+func multiplyAndAdd(vector [8]int) [8]int {
+	var result [8]int
+	for i := 0; i < 8; i++ {
+		result[i] = y[i] // Start with y
+		for j := 0; j < 8; j++ {
+			result[i] ^= X[i][j] * vector[j]
+		}
+	}
+	return result
+}
+
+func processMatrix(matrix [4][4]string) [4][4]string {
+	var processedMatrix [4][4]string
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			fmt.Printf("%v ", vMatrix[i][j])
+			val, err := strconv.ParseUint(matrix[i][j], 16, 8)
+			if err != nil {
+				fmt.Println("Error converting hex to int:", err)
+				continue
+			}
+			vector := byteToVector(byte(val))
+			processedVector := multiplyAndAdd(vector)
+			processedMatrix[i][j] = fmt.Sprintf("%02x", vectorToByte(processedVector))
 		}
-		fmt.Println()
 	}
+	return processedMatrix
+}
+
+// Function to convert the processed matrix back to a string
+func matrixToString(matrix [4][4]string) (string, error) {
+	var byteArray []byte
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			val, err := strconv.ParseUint(matrix[i][j], 16, 8)
+			if err != nil {
+				return "", fmt.Errorf("Error converting hex to int: %v", err)
+			}
+			byteArray = append(byteArray, byte(val))
+		}
+	}
+	return string(byteArray), nil
 }
 
 func main() {
@@ -171,10 +217,14 @@ func main() {
 	fmt.Println("Inverse Matrix: ")
 	printMatrix(inverseMatrix)
 	fmt.Println("<----------------------->")
-	bitVectorMatrix := matrixToVectors(inverseMatrix)
+	processedMatrix := processMatrix(sumMatrix)
+	fmt.Println("Processed matrix with 8-bit vector multiplication and addition:")
+	printMatrix(processedMatrix)
 	fmt.Println("<----------------------->")
-	fmt.Println("Matrix of 8b vectors of the inverse sum: ")
-	printVectorMatrix(bitVectorMatrix)
-	fmt.Println("<----------------------->")
-
+	cryptedMessage, err := matrixToString(processedMatrix)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Crypted message:", cryptedMessage)
 }
