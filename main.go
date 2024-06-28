@@ -41,7 +41,7 @@ func inverseMatrix(m [4][4]byte) [4][4]byte {
 				fmt.Println("error: ", err)
 				continue
 			}
-			result[i][j] = val
+			result[i][j] = byte(val)
 		}
 	}
 
@@ -258,15 +258,25 @@ func InverseSubstituteMatrixWithSBox(matrix [4][4]byte) [4][4]byte {
 
 func main() {
 	startingWord := "Two One Nine Two"
-	fmt.Println(startingWord)
+	fmt.Println("Starting word", startingWord)
 
 	startMatrix := ConvertStringToMatrix(startingWord)
+	fmt.Println("<-------------------------->")
+	fmt.Println("Starting word translated into hex matrix: ")
+	PrintMatrix(startMatrix)
+	fmt.Println("<-------------------------->")
 	invMatrix := inverseMatrix(startMatrix)
+	fmt.Println("Matrix of inversed Hex values (Basically Substitution box values):")
+	PrintMatrix(invMatrix)
+	fmt.Println("<-------------------------->")
 	bitMatrix := vectorMatrix(invMatrix)
 	processedMatrix := processBitMatrix(bitMatrix)
+	fmt.Println("Matrix after the transformations with the Generative Polynomial and Generative Matrix: ")
 	finalMatrix := BitVectorsToMatrix(processedMatrix)
+	PrintMatrix(finalMatrix)
+	fmt.Println("<-------------------------->")
 	finalString := MatrixToString(finalMatrix)
-	fmt.Println(finalString)
+	fmt.Println("Final string after all operations: ", finalString)
 
 	//Doing the same with SBox substitution
 	sboxMatrix := SubstituteMatrixWithSBox(startMatrix)
@@ -286,6 +296,7 @@ func main() {
 	byteMatrix := BitVectorsToMatrix(inverseProcessMatrix)
 	finalfinalMatrix := inverseMatrix(byteMatrix)
 	finalInverseString := MatrixToString(finalfinalMatrix)
+	PrintMatrix(finalfinalMatrix)
 	fmt.Println("Final string after the alternative implementation:")
 	fmt.Println(finalInverseString)
 	fmt.Println("Final string after Substitution Box: ")
