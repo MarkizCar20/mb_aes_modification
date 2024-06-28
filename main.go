@@ -2,296 +2,222 @@ package main
 
 import (
 	"fmt"
-	"strconv"
+
+	"github.com/chronos-tachyon/gf256"
 )
 
-// 8x8 binary matrix X
-var X = [8][8]int{
-	{1, 0, 0, 0, 1, 1, 1, 1},
-	{1, 1, 0, 0, 0, 1, 1, 1},
-	{1, 1, 1, 0, 0, 0, 1, 1},
-	{1, 1, 1, 1, 0, 0, 0, 1},
-	{1, 1, 1, 1, 1, 0, 0, 0},
-	{0, 1, 1, 1, 1, 1, 0, 0},
-	{0, 0, 1, 1, 1, 1, 1, 0},
-	{0, 0, 0, 1, 1, 1, 1, 1},
-}
+func ConvertStringToMatrix(s string) [4][4]byte {
+	var matrix [4][4]byte
 
-var X_inv = [8][8]int{
-	{0, 1, 0, 0, 0, 0, 0, 1},
-	{1, 0, 1, 0, 0, 0, 0, 1},
-	{0, 1, 0, 1, 0, 0, 0, 1},
-	{0, 0, 1, 0, 1, 0, 0, 1},
-	{0, 0, 0, 1, 0, 1, 0, 1},
-	{0, 0, 0, 0, 1, 0, 1, 1},
-	{0, 0, 0, 0, 0, 1, 0, 1},
-	{0, 0, 0, 0, 0, 0, 1, 1},
-}
+	// Convert string to byte slice
+	bytes := []byte(s)
 
-// Predefined vector y
-var y = [8]int{1, 1, 0, 0, 0, 1, 0, 0}
-
-func convertToHexMatrix(word string) [4][4]string {
-	var matrix [4][4]string
-	paddedWord := []byte(word)
-	if len(word) < 16 {
-		paddedWord = append(paddedWord, make([]byte, 16-len(word))...)
+	// Fill the matrix
+	for i := 0; i < 16 && i < len(bytes); i++ {
+		matrix[i/4][i%4] = bytes[i]
 	}
 
-	for i := 0; i < 16; i++ {
-		matrix[i/4][i%4] = fmt.Sprintf("%02x", paddedWord[i])
-	}
 	return matrix
 }
 
-func convertStringToHexMatrix(word string) [4][4]string {
-	var matrix [4][4]string
-	for i := 0; i < 16; i++ {
-		matrix[i/4][i%4] = fmt.Sprintf("%02x", word[i])
-	}
-	return matrix
-}
-
-func printMatrix(matrix [4][4]string) {
-	for _, row := range matrix {
-		for _, val := range row {
-			fmt.Printf("%s ", val)
+// PrintMatrix prints the 4x4 matrix in hex format
+func PrintMatrix(matrix [4][4]byte) {
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			fmt.Printf("%02x ", matrix[i][j])
 		}
 		fmt.Println()
 	}
 }
 
-func addMatrix(m1 [4][4]string, m2 [4][4]string) [4][4]string {
-	var result [4][4]string
+func inverseMatrix(m [4][4]byte) [4][4]byte {
+	var result [4][4]byte
+	field := gf256.New(gf256.Poly11B)
 
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			val1, err1 := strconv.ParseInt(m1[i][j], 16, 64)
-			val2, err2 := strconv.ParseInt(m2[i][j], 16, 64)
-
-			if err1 != nil || err2 != nil {
-				fmt.Println("Error converting hex to int", err1, err2)
-			}
-			sum := val1 ^ val2 // Use XOR for addition in GF(2^8)
-			result[i][j] = fmt.Sprintf("%02x", sum)
-		}
-	}
-
-	return result
-}
-
-func computeInverseMatrix(matrix [4][4]string) [4][4]string {
-	var inverseMatrix [4][4]string
-	inverses := computeMultiplicationInverses()
-
-	for i := 0; i < 4; i++ {
-		for j := 0; j < 4; j++ {
-			val, err := strconv.ParseInt(matrix[i][j], 16, 64)
-			if err != nil {
-				fmt.Println("Error converting hex to int:", err)
+			val, err := field.Inv(m[i][j])
+			if err != true {
+				fmt.Println("error: ", err)
 				continue
 			}
-			inverseMatrix[i][j] = fmt.Sprintf("%02x", inverses[val])
-		}
-	}
-	return inverseMatrix
-}
-
-func computeMultiplicationInverses() [256]byte {
-	var inverses [256]byte
-	inverses[0] = 0
-
-	for x := 1; x < 256; x++ {
-		for y := 1; y < 256; y++ {
-			if gfMultiply(byte(x), byte(y)) == 1 {
-				inverses[x] = byte(y)
-				break
-			}
+			result[i][j] = val
 		}
 	}
 
-	return inverses
+	return result
 }
 
-func checkInverses(m1, m2 [4][4]string) bool {
+func byteToBits(b byte) [8]byte {
+	var bits [8]byte
+	for i := 0; i < 8; i++ {
+		bits[i] = (b >> (7 - i)) & 1
+	}
+	return bits
+}
+
+func vectorMatrix(m [4][4]byte) [4][4][8]byte {
+	var bitMatrix [4][4][8]byte
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			val1, err1 := strconv.ParseInt(m1[i][j], 16, 64)
-			val2, err2 := strconv.ParseInt(m2[i][j], 16, 64)
-
-			if err1 != nil || err2 != nil {
-				fmt.Println("Error converting hex to int", err1, err2)
-				return false
-			}
-			if gfMultiply(byte(val1), byte(val2)) != 1 {
-				fmt.Printf("Mismatch at (%d, %d): %02x * %02x != 01\n", i, j, val1, val2)
-				return false
-			}
+			bitMatrix[i][j] = byteToBits(byte(m[i][j]))
 		}
 	}
-	return true
+	return bitMatrix
 }
 
-func gfMultiply(a, b byte) byte {
-	var result byte = 0
-	var polynomial byte = 0x1B // Polynomial for reduction: x^8 + x^4 + x^3 + x + 1 -> 0b11011 in hex is 0x1B
-
+func MatrixVectorMultiply(matrix [8][8]byte, vector [8]byte) [8]byte {
+	var result [8]byte
 	for i := 0; i < 8; i++ {
-		if (b & 1) != 0 {
-			result ^= a
-		}
-		carry := (a & 0x80) != 0
-		a <<= 1
-		if carry {
-			a ^= polynomial
-		}
-		b >>= 1
-	}
-	return result
-}
-
-func byteToVector(b byte) [8]int {
-	var vector [8]int
-	binaryStr := fmt.Sprintf("%08b", b)
-	for i := 0; i < 8; i++ {
-		vector[i] = int(binaryStr[i] - '0')
-	}
-	return vector
-}
-
-// Function to convert an 8-bit vector to a byte
-func vectorToByte(vector [8]int) byte {
-	var result byte
-	for i := 0; i < 8; i++ {
-		if vector[i] == 1 {
-			result |= 1 << (7 - i)
-		}
-	}
-	return result
-}
-
-// Function to multiply the matrix X by an 8-bit vector and add vector y
-func multiplyAndAdd(vector [8]int) [8]int {
-	var result [8]int
-	for i := 0; i < 8; i++ {
-		result[i] = y[i] // Start with y
+		sum := byte(0)
 		for j := 0; j < 8; j++ {
-			result[i] ^= X[i][j] * vector[j]
+			sum ^= matrix[i][j] & vector[j]
 		}
+		result[i] = sum
 	}
 	return result
 }
 
-func multiplyAndSubtract(vector [8]int) [8]int {
-	var result [8]int
+func AddVectors(vec1, vec2 [8]byte) [8]byte {
+	var result [8]byte
 	for i := 0; i < 8; i++ {
-		result[i] = vector[i] ^ y[i]
+		result[i] = vec1[i] ^ vec2[i]
 	}
-	var original [8]int
+	return result
+}
+
+func processBitMatrix(m [4][4][8]byte) [4][4][8]byte {
+	var transformMatrix = [8][8]byte{
+		{1, 0, 0, 0, 1, 1, 1, 1},
+		{1, 1, 0, 0, 0, 1, 1, 1},
+		{1, 1, 1, 0, 0, 0, 1, 1},
+		{1, 1, 1, 1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 0, 0, 0},
+		{0, 1, 1, 1, 1, 1, 0, 0},
+		{0, 0, 1, 1, 1, 1, 1, 0},
+		{0, 0, 0, 1, 1, 1, 1, 1},
+	}
+
+	var additionVector = [8]byte{1, 1, 0, 0, 0, 1, 1, 0}
+
+	var resultMatrix [4][4][8]byte
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			intermediate := MatrixVectorMultiply(transformMatrix, m[i][j])
+			resultMatrix[i][j] = AddVectors(intermediate, additionVector)
+		}
+	}
+
+	return resultMatrix
+}
+
+// PrintBitMatrix prints the 4x4x8 bit matrix
+func PrintBitMatrix(matrix [4][4][8]byte) {
+	for i := 0; i < 4; i++ {
+		for j := 0; j < 4; j++ {
+			fmt.Println(matrix[i][j])
+		}
+		fmt.Println()
+	}
+}
+
+func BitsToByte(bits [8]byte) byte {
+	var b byte
 	for i := 0; i < 8; i++ {
-		for j := 0; j < 8; j++ {
-			original[i] ^= X_inv[i][j] * result[j]
-		}
+		b |= bits[i] << (7 - i)
 	}
-	return original
+	return b
 }
 
-func processMatrix(matrix [4][4]string) [4][4]string {
-	var processedMatrix [4][4]string
+// BitVectorsToMatrix converts a 4x4x8 bit matrix back to a 4x4 byte matrix
+func BitVectorsToMatrix(bitMatrix [4][4][8]byte) [4][4]byte {
+	var matrix [4][4]byte
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			val, err := strconv.ParseUint(matrix[i][j], 16, 8)
-			if err != nil {
-				fmt.Println("Error converting hex to int:", err)
-				continue
-			}
-			vector := byteToVector(byte(val))
-			processedVector := multiplyAndAdd(vector)
-			processedMatrix[i][j] = fmt.Sprintf("%02x", vectorToByte(processedVector))
+			matrix[i][j] = BitsToByte(bitMatrix[i][j])
 		}
 	}
-	return processedMatrix
+	return matrix
 }
 
-func inverseProcessMatrix(matrix [4][4]string) [4][4]string {
-	var processedMatrix [4][4]string
+// MatrixToString converts a 4x4 byte matrix back to a string
+func MatrixToString(matrix [4][4]byte) string {
+	var bytes []byte
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			val, err := strconv.ParseUint(matrix[i][j], 16, 8)
-			if err != nil {
-				fmt.Println("Error converting hex to int:", err)
-				continue
+			if matrix[i][j] != 0 {
+				bytes = append(bytes, matrix[i][j])
 			}
-			vector := byteToVector(byte(val))
-			originalVector := multiplyAndSubtract(vector)
-			processedMatrix[i][j] = fmt.Sprintf("%02x", vectorToByte(originalVector))
 		}
 	}
-	return processedMatrix
+	return string(bytes)
 }
 
-// Function to convert the processed matrix back to a string
-func matrixToString(matrix [4][4]string) (string, error) {
-	var byteArray []byte
+// SubtractVectors subtracts two 8x1 vectors
+func SubtractVectors(a, b [8]byte) [8]byte {
+	var result [8]byte
+	for i := 0; i < 8; i++ {
+		result[i] = a[i] ^ b[i]
+	}
+	return result
+}
+
+func InverseProcessBitMatrix(bitMatrix [4][4][8]byte) [4][4][8]byte {
+	var inverseTransformMatrix = [8][8]byte{
+		{0, 0, 1, 0, 0, 1, 0, 1},
+		{1, 0, 0, 1, 0, 0, 1, 0},
+		{0, 1, 0, 0, 1, 0, 0, 1},
+		{1, 0, 1, 0, 0, 1, 0, 0},
+		{0, 1, 0, 1, 0, 0, 1, 0},
+		{0, 0, 1, 0, 1, 0, 0, 1},
+		{1, 0, 0, 1, 0, 1, 0, 0},
+		{0, 1, 0, 0, 1, 0, 1, 0},
+	}
+
+	var subtractionVector = [8]byte{1, 1, 0, 0, 0, 1, 1, 0}
+
+	var resultMatrix [4][4][8]byte
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
-			val, err := strconv.ParseUint(matrix[i][j], 16, 8)
-			if err != nil {
-				return "", fmt.Errorf("Error converting hex to int: %v", err)
-			}
-			byteArray = append(byteArray, byte(val))
+			intermediate := SubtractVectors(bitMatrix[i][j], subtractionVector)
+			resultMatrix[i][j] = MatrixVectorMultiply(inverseTransformMatrix, intermediate)
 		}
 	}
-	return string(byteArray), nil
+	return resultMatrix
 }
 
 func main() {
-	fmt.Println("Hello go")
+	startingWord := "Swo One Nine Two"
+	fmt.Println(startingWord)
 
-	word := "Two One Nine Two"
-	key := "1234567891234567"
-	wordMatrix := convertToHexMatrix(word)
-	keyMatrix := convertToHexMatrix(key)
-	sumMatrix := addMatrix(wordMatrix, keyMatrix)
-	inverseMatrix := computeInverseMatrix(sumMatrix)
-	fmt.Println("Hex matrix of the word: ")
-	printMatrix(wordMatrix)
-	fmt.Println("<----------------------->")
-	fmt.Println("Hex matrix of the key: ")
-	printMatrix(keyMatrix)
-	fmt.Println("<----------------------->")
-	fmt.Println("Hex matrix of their sum")
-	printMatrix(sumMatrix)
-	fmt.Println("<----------------------->")
-	fmt.Println("Inverse Matrix: ")
-	printMatrix(inverseMatrix)
-	fmt.Println("<----------------------->")
-	processedMatrix := processMatrix(sumMatrix)
-	fmt.Println("Processed matrix with 8-bit vector multiplication and addition:")
-	printMatrix(processedMatrix)
-	fmt.Println("<----------------------->")
-	cryptedMessage, err := matrixToString(processedMatrix)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Crypted message:", cryptedMessage)
+	startMatrix := ConvertStringToMatrix(startingWord)
+	PrintMatrix(startMatrix)
 
-	fmt.Println("<----------------------->")
-	encryptedMatrix := convertStringToHexMatrix(cryptedMessage)
-	printMatrix(encryptedMatrix)
-	fmt.Println("<----------------------->")
-	inverseProcessedMatrix := inverseProcessMatrix(encryptedMatrix)
-	fmt.Println("Processed Matrix: ")
-	printMatrix(inverseProcessedMatrix)
-	fmt.Println("<----------------------->")
-	finalSumMatrix := addMatrix(inverseProcessedMatrix, keyMatrix)
-	fmt.Println("Final sum matrix: ")
-	printMatrix(finalSumMatrix)
-	fmt.Println("<----------------------->")
-	finalWord, err := matrixToString(finalSumMatrix)
-	if err != nil {
-		fmt.Printf("Error when converting to string: %v\n", err)
-	}
-	fmt.Printf("Final word: %s\n", finalWord)
+	// field := gf256.New(gf256.Poly11B)
+	invMatrix := inverseMatrix(startMatrix)
+	PrintMatrix(invMatrix)
+	bitMatrix := vectorMatrix(invMatrix)
+	fmt.Println("Bit matrix before processing: ")
+	PrintBitMatrix(bitMatrix)
+	processedMatrix := processBitMatrix(bitMatrix)
+	fmt.Println("Bit matrix after processing: ")
+	PrintBitMatrix(processedMatrix)
+	finalMatrix := BitVectorsToMatrix(processedMatrix)
+	fmt.Println("Final Byte Matrix: ")
+	PrintMatrix(finalMatrix)
+	finalString := MatrixToString(finalMatrix)
+	fmt.Println(finalString)
+
+	matrixAfterChannel := ConvertStringToMatrix(finalString)
+	PrintMatrix(matrixAfterChannel)
+	bitMatrixAfterChannel := vectorMatrix(matrixAfterChannel)
+	PrintBitMatrix(bitMatrixAfterChannel)
+	inverseProcessMatrix := InverseProcessBitMatrix(bitMatrixAfterChannel)
+	fmt.Println("Inverse Processed Matrix: ")
+	PrintBitMatrix(inverseProcessMatrix)
+	byteMatrix := BitVectorsToMatrix(inverseProcessMatrix)
+	PrintMatrix(byteMatrix)
+	finalfinalMatrix := inverseMatrix(byteMatrix)
+	finalInverseString := MatrixToString(finalfinalMatrix)
+	fmt.Println(finalInverseString)
 }
